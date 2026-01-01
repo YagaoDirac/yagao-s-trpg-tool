@@ -1,10 +1,24 @@
 from typing import Optional
 from copy import deepcopy
 
-
 def __DEBUG_ME__()->bool:
     return __name__ == "__main__"
-
+def _float_list_equal(list_1:list[float], list_2:list[float], epsilon=0.001)->bool:
+    assert list_1.__len__() == list_2.__len__()
+    assert epsilon>0.
+    for ii in range(list_1.__len__()):
+        from_list_1 = list_1[ii]
+        from_list_2 = list_2[ii]
+        if abs(from_list_1-from_list_2)>epsilon:
+            return False
+        pass#for
+    return True
+if "test" and __DEBUG_ME__() and True:
+    assert _float_list_equal([1., 2, 3], [1., 2, 3])
+    assert _float_list_equal([1., 2, 3], [1.0009, 2, 3])
+    assert not _float_list_equal([1., 2, 3], [1.0011, 2, 3])
+    pass
+        
 
 
 class Consequence_raw():
@@ -136,7 +150,7 @@ class Content_item():
         return f"{self.name}:{self.content}"
     
     def __repr__(self)->str:
-        result = f"{self.index_in_list}){self.name}. "
+        result = f"{self.index_in_list}#{self.name}. "
         if not self.needs_print:
             result += "(hidden)"
             pass
@@ -406,21 +420,30 @@ class Scenario():
         return index
     
     def add(self, what:int|str, strength:float):
-        #return self.update(what, strength, force=False)
-        self.update(what, strength, force=False)
+        assert strength>0.
+        self._update(what, strength, force=False)
+        pass
     
-    def update(self, what:int|str, strength:float, force = True):
-        #return self.update(what, strength, force=True)
+    def update(self, what:int|str, strength:float):
+        assert strength>0.
         self._update(what, strength, force=True)
+        pass
+        
+    def clear(self, what:int|str):
+        self._update(what, strength = 0., force=True)
+        pass
         
     def _update(self, what:int|str, strength:float, force:bool):
-        assert strength>0.
         assert strength<1.
         index = self._name_or_index_to_index(what)
         if not force:
-            assert self.strength[index]!=0.,"Already added. Can NOT add again."
+            assert self.strength[index] ==0.,"Already added. Can NOT add again."
             pass
         self.strength[index] = strength
+        pass
+    
+    def clear_all(self):
+        self.strength = [0.]*(self.strength.__len__())
         pass
     
     def get(self,what:int|str)->float:
@@ -484,6 +507,7 @@ class Scenario():
     pass#/class
 
 if "test" and __DEBUG_ME__() and True:
+    #basic.
     ci_raw_list = []
     ci_raw = Content_item_raw(name="事件A", keywords=[], content="事件A发生了。", threshold=0.3)
     ci_raw.add_consequence(Consequence_raw("事件B", 0.8, 0.5))
@@ -500,10 +524,9 @@ if "test" and __DEBUG_ME__() and True:
     
     
     
-    
-    
+    #A to all.
     ci_raw_list = []
-    ci_raw = Content_item_raw(name="排序主体", keywords=[], content="", threshold=0.3)
+    ci_raw = Content_item_raw(name="排序主体", keywords=[], content="", threshold=0.001)
     ci_raw.add_consequence(Consequence_raw("a6_12", 0.6))
     ci_raw.add_consequence(Consequence_raw("a6_10", 0.6))
     ci_raw.add_consequence(Consequence_raw("a9_12", 0.9))
@@ -514,25 +537,65 @@ if "test" and __DEBUG_ME__() and True:
     ci_raw_list.append(Content_item_raw(name="a9_12", keywords=[], content="", threshold=0.12))
     ci_raw_list.append(Content_item_raw(name="a9_10", keywords=[], content="", threshold=0.10))
     
-    1w
     
     ct = Content(ci_raw_list)
     sc = Scenario(ct)    
     sc.add(0, 0.5)
     result = sc.calc()
-    assert result == [0.5,   0.45,0.45,0.3,0.3]
+    assert _float_list_equal(result, [0.5,   0.3,0.3,0.45,0.45])
     sc.update(0, 0.19)
     result = sc.calc()
-    assert result == [0.19,   0.171,0.171,0.114,   0.]
+    assert _float_list_equal(result, [0.19,   0.,   0.114,0.171,0.171])
     sc.update(0, 0.15)
     result = sc.calc()
-    assert result == [0.15,   0.135,0.135,   0.,0.]
+    assert _float_list_equal(result, [0.15,   0.,0.,   0.135,0.135])
     sc.update(0, 0.13)
     result = sc.calc()
-    assert result == [0.13,   0.117,   0.,0.,0.]
+    assert _float_list_equal(result, [0.13,   0.,0.,0.,   0.117])
     sc.update(0, 0.1)
     result = sc.calc()
-    assert result == [0.1,   0.,0.,0.,0.]
+    assert _float_list_equal(result, [0.1,   0.,0.,0.,0.])
+    assert sc.CONTENT.data[0].name == "排序主体"
+    assert sc.CONTENT.data[0].threshold <0.1
+    
+    
+    #ciclic, A->B->C->A
+    ci_raw_list = []
+    ci_raw = Content_item_raw(name="A", keywords=[], content="", threshold=0.01)
+    ci_raw.add_consequence(Consequence_raw("B", 0.5))
+    ci_raw_list.append(ci_raw)
+    ci_raw = Content_item_raw(name="B", keywords=[], content="", threshold=0.01)
+    ci_raw.add_consequence(Consequence_raw("C", 0.5))
+    ci_raw_list.append(ci_raw)
+    ci_raw = Content_item_raw(name="C", keywords=[], content="", threshold=0.01)
+    ci_raw.add_consequence(Consequence_raw("A", 0.5))
+    ci_raw_list.append(ci_raw)
+    
+    ct = Content(ci_raw_list)
+    sc = Scenario(ct)    
+    sc.add(0, 0.8)
+    result = sc.calc()
+    assert _float_list_equal(result, [0.8, 0.4, 0.2])
+    
+    
+    #mutually
+    ci_raw_list = []
+    ci_raw = Content_item_raw(name="A", keywords=[], content="", threshold=0.01)
+    ci_raw.add_consequence(Consequence_raw("B", 0.5, 0.5))
+    ci_raw_list.append(ci_raw)
+    ci_raw = Content_item_raw(name="B", keywords=[], content="", threshold=0.01)
+    ci_raw_list.append(ci_raw)
+    
+    ct = Content(ci_raw_list)
+    sc = Scenario(ct)    
+    sc.add(0, 0.8)
+    result = sc.calc()
+    assert _float_list_equal(result, [0.8, 0.4])
+    sc.clear_all()
+    sc.update(1, 0.8)
+    result = sc.calc()
+    assert _float_list_equal(result, [0.4, 0.8])
+    
     
     pass
     
